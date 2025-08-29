@@ -5,6 +5,9 @@
 
 This project is part of the Shell Skills4Future Internship. It involves analyzing renewable energy consumption data across multiple countries and years using Python and Pandas.
 
+## Dataset link
+https://www.kaggle.com/datasets/ayushchandramaurya/renewable-energy
+
 ## ⚙️ Tools & Libraries Used
 
 Python

@@ -77,4 +77,23 @@ Here are a few sample rows from the dataset:
 - Comparative research between developed and developing countries.  
 - Forecasting renewable energy demand for the future.  
 
+# 🌱 Renewable Energy Analysis
+
+A data-driven project analyzing **renewable energy trends across countries** using Python.  
+The project combines **visualizations, insights, and simple predictions** to understand global energy growth.
+
+---
+
+## 📊 Features
+✔ India’s renewable energy growth trend  
+✔ Comparison of India, China, and USA  
+✔ Top 10 years of India’s renewable energy usage  
+✔ Global renewable energy usage in the latest year  
+✔ Growth rate calculation  
+✔ **Creative insights** (CAGR, rankings, predictions)  
+
+---
+
+
+
 

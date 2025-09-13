@@ -7,20 +7,22 @@ import altair as alt
 from datetime import datetime
 
 st.set_page_config(page_title="Energy Efficiency Dashboard", layout="wide")
-st.title("Final Project: Dynamic Energy Efficiency Dashboard 🚀")
+st.title("Dynamic Energy Efficiency Dashboard 🚀")
 
 # --- 1. Upload dataset ---
 uploaded_file = st.file_uploader("Upload CSV file", type="csv")
 
 if uploaded_file:
-    df = pd.read_csv(uploaded_file)
-    st.write("### Data Preview")
-    st.dataframe(df.head())
+    # Limit to first 5000 rows for large CSVs
+    df = pd.read_csv(uploaded_file, nrows=5000)
+    st.write("### Data Preview (First 100 rows)")
+    st.dataframe(df.head(100))
 
     # --- 2. Handle Time Column ---
     time_cols = df.select_dtypes(include=['datetime64', 'object']).columns.tolist()
     if time_cols:
         time_col = st.selectbox("Select Time Column", time_cols)
+        # Safe conversion
         df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
         if df[time_col].isna().all():
             st.warning(f"Column '{time_col}' invalid. Creating automatic Time column.")
@@ -31,12 +33,12 @@ if uploaded_file:
         df['Time'] = pd.date_range(start=datetime.now(), periods=len(df), freq='T')
         time_col = 'Time'
 
-    # --- 3. Numeric columns ---
+    # --- 3. Numeric Columns ---
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     st.write("### Numeric Columns")
-    st.dataframe(df[numeric_cols].head())
+    st.dataframe(df[numeric_cols].head(10))
 
-    # --- 4. Select features and target ---
+    # --- 4. Sidebar: Features & Target ---
     st.sidebar.header("Regression Options")
     x_cols = st.sidebar.multiselect("Select Features (X)", numeric_cols, default=numeric_cols[:1])
     y_col = st.sidebar.selectbox("Select Target (Y)", numeric_cols)
@@ -45,16 +47,21 @@ if uploaded_file:
         X = df[x_cols]
         y = df[y_col]
 
-        # Handle missing values
+        # Drop missing values
         if X.isnull().any().any() or y.isnull().any():
             st.warning("Dropping rows with missing values.")
             data = pd.concat([X, y], axis=1).dropna()
             X = data[x_cols]
             y = data[y_col]
 
-        # --- 5. Train Model ---
-        model = LinearRegression()
-        model.fit(X, y)
+        # --- 5. Train Model (cached) ---
+        @st.cache_data
+        def train_model(X, y):
+            model = LinearRegression()
+            model.fit(X, y)
+            return model
+
+        model = train_model(X, y)
         st.success("Model trained successfully!")
         st.write(f"### Model Accuracy (R²): {model.score(X, y):.2f}")
 
@@ -70,17 +77,18 @@ if uploaded_file:
             prediction = model.predict([input_values])[0]
             st.write(f"### Predicted {y_col}: {prediction:.2f}")
 
-            # Append new row with timestamp
+            # Append new prediction with timestamp
             new_row = {time_col: datetime.now(), **new_inputs, y_col: prediction}
             df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
-        # --- 7. Altair Time vs Feature Chart ---
+        # --- 7. Time vs Features Chart ---
         st.subheader("Time vs Features Chart")
         selected_plot_cols = st.multiselect(
             "Select features to plot", numeric_cols + [y_col], default=[y_col]
         )
         if selected_plot_cols:
-            plot_df = df[[time_col] + selected_plot_cols].dropna()
+            # Limit chart to last 1000 rows to prevent freezing
+            plot_df = df[[time_col] + selected_plot_cols].dropna().tail(1000)
             plot_df_melted = plot_df.melt(id_vars=[time_col], value_vars=selected_plot_cols,
                                           var_name="Feature", value_name="Value")
             chart = alt.Chart(plot_df_melted).mark_line(point=True).encode(
@@ -91,23 +99,21 @@ if uploaded_file:
             ).interactive()
             st.altair_chart(chart, use_container_width=True)
 
-        # --- 8. Optional 1D Regression Line ---
+        # --- 8. Optional: 1D Regression Line ---
         if len(x_cols) == 1:
             st.subheader("1D Regression Line")
             fig, ax = plt.subplots()
             ax.scatter(X, y, label="Data", color="blue")
             ax.plot(X, model.predict(X), color="red", label="Regression Line", linewidth=2)
-
             # Highlight predicted point
             if 'prediction' in locals():
                 ax.scatter([new_inputs[x_cols[0]]], [prediction], color='green', s=100, label='Prediction')
-
             ax.set_xlabel(x_cols[0])
             ax.set_ylabel(y_col)
             ax.legend()
             st.pyplot(fig)
 
-        # --- 9. Optional: Normalize features toggle ---
+        # --- 9. Normalize toggle ---
         if st.checkbox("Normalize features for chart visualization"):
             norm_df = df[selected_plot_cols].apply(lambda x: (x - x.min()) / (x.max() - x.min()))
             norm_df[time_col] = df[time_col]

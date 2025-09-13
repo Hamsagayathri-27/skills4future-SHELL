@@ -4,9 +4,9 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 import altair as alt
-from datetime import datetime
+from datetime import datetime, timedelta
 
-st.title("Final Project: Time & Multiple Feature Prediction")
+st.title("Final Project: Time & Dynamic Prediction Dashboard")
 
 # --- 1. Upload dataset ---
 uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
@@ -16,7 +16,7 @@ if uploaded_file:
     st.write("### Data Preview")
     st.dataframe(df.head())
 
-    # Check if time column exists or create one
+    # Check for time column or create one
     time_cols = df.select_dtypes(include=['datetime64', 'object']).columns.tolist()
     if time_cols:
         time_col = st.selectbox("Select Time Column", time_cols)
@@ -26,7 +26,7 @@ if uploaded_file:
         df['Time'] = pd.date_range(start=datetime.now(), periods=len(df), freq='T')
         time_col = 'Time'
 
-    # Show numeric columns
+    # Numeric columns
     numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
     st.write("### Numeric Columns")
     st.dataframe(df[numeric_cols].head())
@@ -46,32 +46,31 @@ if uploaded_file:
             X = data[x_cols]
             y = data[y_col]
 
-        # --- Train model ---
+        # Train model
         model = LinearRegression()
         model.fit(X, y)
         st.success("Model trained successfully!")
         st.write(f"### Model Accuracy (R²): {model.score(X, y):.2f}")
 
-        # --- Predict new input ---
-        st.write("### Predict New Values")
+        # --- 3. Dynamic prediction input ---
+        st.write("### Predict New Values Dynamically")
         new_inputs = {}
         for col in x_cols:
             val = st.number_input(f"Enter value for {col}:", value=0.0, step=0.1)
             new_inputs[col] = val
 
-        if st.button("Predict"):
+        if st.button("Predict & Add to Chart"):
             input_values = [new_inputs[col] for col in x_cols]
             prediction = model.predict([input_values])[0]
             st.write(f"### Predicted {y_col}: {prediction:.2f}")
 
-            result_df = pd.DataFrame({**new_inputs, y_col: [prediction]})
-            st.write("### Input Values with Prediction")
-            st.dataframe(result_df)
+            # Append new prediction to dataframe with current timestamp
+            new_row = {time_col: datetime.now(), **new_inputs, y_col: prediction}
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
 
-        # --- Plot Time vs Features ---
-        st.write("### Time vs Selected Features Chart")
-        selected_plot_cols = st.multiselect("Select features to plot over Time", numeric_cols, default=[y_col])
-
+        # --- 4. Plot dynamic Altair chart ---
+        selected_plot_cols = st.multiselect("Select features to plot over Time", numeric_cols + [y_col],
+                                            default=[y_col])
         if selected_plot_cols:
             plot_df = df[[time_col] + selected_plot_cols].copy()
             plot_df = plot_df.dropna()
@@ -81,5 +80,15 @@ if uploaded_file:
                 x=f'{time_col}:T',
                 y='Value:Q',
                 color='Feature:N'
-            )
+            ).interactive()
             st.altair_chart(chart, use_container_width=True)
+
+        # --- Optional: 1D regression plot ---
+        if len(x_cols) == 1:
+            fig, ax = plt.subplots()
+            ax.scatter(X, y, label="Data", color="blue")
+            ax.plot(X, model.predict(X), color="red", label="Regression Line")
+            ax.set_xlabel(x_cols[0])
+            ax.set_ylabel(y_col)
+            ax.legend()
+            st.pyplot(fig)
